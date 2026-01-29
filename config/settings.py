@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     bot_username: str = Field("", alias="BOT_USERNAME")
 
     # AI API
-    gemini_api_key: str = Field(..., alias="GEMINI_API_KEY")
+    gemini_api_key: str = Field("", alias="GEMINI_API_KEY")
+    laozhang_api_key: str = Field(..., alias="LAOZHANG_API_KEY")
 
     # Database
     database_url: str = Field("sqlite:///./data/bot.db", alias="DATABASE_URL")

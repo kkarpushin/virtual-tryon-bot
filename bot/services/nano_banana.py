@@ -1,10 +1,10 @@
-"""Gemini 3 Pro Image API integration for virtual try-on (Nano Banana Pro)."""
-from google import genai
-from google.genai import types
-from PIL import Image
+"""LaoZhang AI API integration for virtual try-on (Nano Banana Pro)."""
+import requests
+import base64
 import asyncio
 from typing import Optional, Tuple
 import logging
+from pathlib import Path
 
 from config import settings
 
@@ -13,28 +13,38 @@ logger = logging.getLogger(__name__)
 
 class NanoBananaService:
     """
-    Service for virtual try-on image generation using Gemini 3 Pro Image.
-    
-    Uses the most powerful model with:
-    - Thinking process (enabled by default, cannot be disabled)
+    Service for virtual try-on image generation using LaoZhang AI API.
+
+    Uses Gemini 3 Pro Image via LaoZhang proxy with:
     - High quality image generation (up to 4K)
     - Multi-image input support
+    - Competitive pricing ($0.05/image)
     """
 
     def __init__(self):
-        self.client = genai.Client(api_key=settings.gemini_api_key)
-        # Gemini 3 Pro Image - most powerful model for image generation
-        self.model_name = "gemini-3-pro-image-preview"
-        # For text tasks - use stable model name
-        self.text_model_name = "gemini-2.5-flash"
+        self.api_key = settings.laozhang_api_key
+        self.api_url = "https://api.laozhang.ai/v1beta/models/gemini-3-pro-image-preview:generateContent"
+        self.text_api_url = "https://api.laozhang.ai/v1/chat/completions"
+        self.timeout = 180  # 3 minutes for image generation
 
-        # Image generation config for high quality output
-        self.image_config = types.GenerateContentConfig(
-            response_modalities=["TEXT", "IMAGE"],
-            image_config=types.ImageConfig(
-                image_size="2K",  # High resolution output
-            )
-        )
+    def _encode_image(self, image_path: str) -> Tuple[str, str]:
+        """Encode image to base64 and detect mime type."""
+        path = Path(image_path)
+        suffix = path.suffix.lower()
+
+        mime_types = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+        }
+        mime_type = mime_types.get(suffix, "image/jpeg")
+
+        with open(image_path, "rb") as f:
+            image_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+        return image_b64, mime_type
 
     async def generate_tryon(
         self,
@@ -43,12 +53,8 @@ class NanoBananaService:
         additional_instructions: str = ""
     ) -> Tuple[Optional[bytes], Optional[str]]:
         """Generate a virtual try-on image with simple, direct prompt."""
-        try:
-            user_image = Image.open(user_photo_path)
-            clothing_image = Image.open(clothing_photo_path)
 
-            # Простой и прямой промпт с акцентом на сохранение пропорций
-            prompt = """Одень эту одежду на этого человека. 
+        prompt = """Одень эту одежду на этого человека.
 
 ВАЖНО:
 - Одежда должна выглядеть точно так же как на исходном фото - тот же цвет, текстура, рисунок, детали
@@ -58,77 +64,10 @@ class NanoBananaService:
 - Покажи РЕАЛИСТИЧНУЮ посадку одежды на РЕАЛЬНОЕ тело человека
 - Сохрани позу, лицо и внешность человека"""
 
-            if additional_instructions:
-                prompt += f" {additional_instructions}"
+        if additional_instructions:
+            prompt += f" {additional_instructions}"
 
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.model_name,
-                contents=[
-                    "Фото человека:",
-                    user_image,
-                    "Одежда для примерки:",
-                    clothing_image,
-                    prompt,
-                ],
-                config=self.image_config
-            )
-
-            # Log response for debugging
-            logger.info(f"Response type: {type(response)}")
-            logger.info(f"Response: {response}")
-
-            # Check if response is valid
-            if response is None:
-                logger.error("Response is None")
-                return None, "Модель вернула пустой ответ"
-
-            # Log full response for debugging
-            num_candidates = len(response.candidates) if hasattr(response, 'candidates') and response.candidates else 0
-            logger.info(f"Response candidates count: {num_candidates}")
-
-            if hasattr(response, 'prompt_feedback'):
-                logger.info(f"Prompt feedback: {response.prompt_feedback}")
-
-            if num_candidates > 0:
-                for i, cand in enumerate(response.candidates):
-                    if hasattr(cand, 'finish_reason'):
-                        logger.info(f"Candidate {i} finish_reason: {cand.finish_reason}")
-                    if hasattr(cand, 'safety_ratings') and cand.safety_ratings:
-                        logger.info(f"Candidate {i} safety_ratings: {cand.safety_ratings}")
-
-            # Check if response has parts (may be empty due to content policy)
-            if not response or not response.parts:
-                # Check for blocked reason
-                if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
-                    logger.warning(f"Generation blocked by prompt_feedback: {response.prompt_feedback}")
-                    return None, "Генерация заблокирована политикой безопасности. Попробуйте другое фото одежды."
-                # Check candidates for finish reason
-                if response and response.candidates:
-                    for cand in response.candidates:
-                        if hasattr(cand, 'finish_reason') and cand.finish_reason:
-                            logger.warning(f"Generation stopped: {cand.finish_reason}")
-                            if "SAFETY" in str(cand.finish_reason):
-                                return None, "Генерация заблокирована по соображениям безопасности"
-                return None, "Модель не смогла сгенерировать изображение. Попробуйте другое фото."
-
-            # Get the final (non-thought) image
-            for part in response.parts:
-                if part.text is not None and not getattr(part, 'thought', False):
-                    logger.info(f"Model text: {part.text[:200]}...")
-                elif part.inline_data is not None and not getattr(part, 'thought', False):
-                    return part.inline_data.data, None
-
-            # Fallback: return any image if no non-thought image found
-            for part in response.parts:
-                if part.inline_data is not None:
-                    return part.inline_data.data, None
-
-            return None, "No image generated"
-
-        except Exception as e:
-            logger.error(f"Error generating try-on: {e}")
-            return None, str(e)
+        return await self.generate_with_prompt(user_photo_path, clothing_photo_path, prompt)
 
     async def generate_with_prompt(
         self,
@@ -136,110 +75,156 @@ class NanoBananaService:
         clothing_photo_path: str,
         custom_prompt: str
     ) -> Tuple[Optional[bytes], Optional[str]]:
-        """Generate try-on with a custom prompt using Thinking model."""
+        """Generate try-on with a custom prompt using LaoZhang API."""
         try:
-            user_image = Image.open(user_photo_path)
-            clothing_image = Image.open(clothing_photo_path)
+            # Encode images
+            user_b64, user_mime = self._encode_image(user_photo_path)
+            clothing_b64, clothing_mime = self._encode_image(clothing_photo_path)
 
+            headers = {
+                "x-goog-api-key": self.api_key,
+                "Content-Type": "application/json"
+            }
+
+            # Build multi-image request
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": "Фото человека:"},
+                        {"inline_data": {"mime_type": user_mime, "data": user_b64}},
+                        {"text": "Одежда:"},
+                        {"inline_data": {"mime_type": clothing_mime, "data": clothing_b64}},
+                        {"text": custom_prompt}
+                    ]
+                }],
+                "generationConfig": {
+                    "responseModalities": ["IMAGE"],
+                    "imageConfig": {
+                        "aspectRatio": "1:1",
+                        "imageSize": "2K"
+                    }
+                }
+            }
+
+            logger.info("[LaoZhang] Sending request...")
+
+            # Make async HTTP request
             response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.model_name,
-                contents=[
-                    "Фото человека:",
-                    user_image,
-                    "Одежда:",
-                    clothing_image,
-                    custom_prompt,
-                ],
-                config=self.image_config
+                requests.post,
+                self.api_url,
+                headers=headers,
+                json=payload,
+                timeout=self.timeout
             )
 
-            # Detailed logging for debugging
-            logger.info("[generate_with_prompt] Response received")
-            logger.info(f"[generate_with_prompt] Response type: {type(response)}")
+            logger.info(f"[LaoZhang] Response status: {response.status_code}")
 
-            if response is None:
-                logger.error("[generate_with_prompt] Response is None!")
-                return None, "Модель вернула пустой ответ"
+            if response.status_code != 200:
+                error_text = response.text[:500]
+                logger.error(f"[LaoZhang] Error response: {error_text}")
+                return None, f"API ошибка: {response.status_code}"
 
-            # Log candidates
-            if hasattr(response, 'candidates') and response.candidates:
-                logger.info(f"[generate_with_prompt] Candidates: {len(response.candidates)}")
-                for i, cand in enumerate(response.candidates):
-                    logger.info(f"[generate_with_prompt] Candidate {i}: finish_reason={getattr(cand, 'finish_reason', 'N/A')}")
-                    if hasattr(cand, 'content') and cand.content:
-                        num_parts = len(cand.content.parts) if hasattr(cand.content, 'parts') and cand.content.parts else 0
-                        logger.info(f"[generate_with_prompt] Candidate {i} has {num_parts} parts")
-            else:
-                logger.warning("[generate_with_prompt] No candidates in response!")
+            result = response.json()
 
-            # Log prompt feedback
-            if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
-                logger.warning(f"[generate_with_prompt] Prompt feedback: {response.prompt_feedback}")
+            # Check for errors in response
+            if "error" in result:
+                error_msg = result["error"].get("message", str(result["error"]))
+                logger.error(f"[LaoZhang] API error: {error_msg}")
+                return None, f"Ошибка генерации: {error_msg}"
 
-            # Check if response has parts (may be empty due to content policy)
-            if not response.parts:
-                logger.warning("[generate_with_prompt] response.parts is empty!")
+            # Extract image from response
+            try:
+                candidates = result.get("candidates", [])
+                if not candidates:
+                    logger.warning("[LaoZhang] No candidates in response")
+                    return None, "Модель не смогла сгенерировать изображение"
 
-                # Check finish reason for why generation failed
-                if response.candidates:
-                    for cand in response.candidates:
-                        finish_reason = getattr(cand, 'finish_reason', None)
-                        if finish_reason:
-                            finish_str = str(finish_reason)
-                            if "IMAGE_OTHER" in finish_str or "SAFETY" in finish_str:
-                                return None, "⚠️ К сожалению, модель отказала в генерации этого типа одежды. Попробуйте другую одежду (футболки, платья, верхняя одежда работают лучше)."
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
 
-                if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
-                    return None, f"Заблокировано: {response.prompt_feedback}"
-                return None, "Модель не смогла сгенерировать изображение. Попробуйте другое фото."
+                for part in parts:
+                    if "inlineData" in part:
+                        image_data = part["inlineData"].get("data")
+                        if image_data:
+                            logger.info("[LaoZhang] Image generated successfully!")
+                            return base64.b64decode(image_data), None
 
-            # Get the final (non-thought) image - this is the best quality result
-            for part in response.parts:
-                if part.inline_data is not None and not getattr(part, 'thought', False):
-                    return part.inline_data.data, None
+                logger.warning("[LaoZhang] No image data in response")
+                return None, "Изображение не найдено в ответе"
 
-            # Fallback: return any image if no non-thought image found
-            for part in response.parts:
-                if part.inline_data is not None:
-                    return part.inline_data.data, None
+            except (KeyError, IndexError) as e:
+                logger.error(f"[LaoZhang] Error parsing response: {e}")
+                return None, "Ошибка обработки ответа API"
 
-            return None, "No image generated"
+        except requests.exceptions.Timeout:
+            logger.error("[LaoZhang] Request timeout")
+            return None, "Таймаут запроса. Попробуйте ещё раз."
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"[LaoZhang] Request error: {e}")
+            return None, f"Ошибка сети: {str(e)}"
 
         except Exception as e:
-            logger.error(f"Error generating: {e}")
+            logger.error(f"[LaoZhang] Unexpected error: {e}")
             return None, str(e)
 
-    async def detect_clothing_type(self, clothing_photo_path: str) -> str:
-        """Detect the type of clothing in the photo."""
+    async def detect_clothing_type(self, image_path: str) -> str:
+        """Detect the type of clothing from an image using text model."""
         try:
-            clothing_image = Image.open(clothing_photo_path)
+            image_b64, mime_type = self._encode_image(image_path)
+
+            headers = {
+                "x-goog-api-key": self.api_key,
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"inline_data": {"mime_type": mime_type, "data": image_b64}},
+                        {"text": """Определи тип одежды на фото. Ответь ОДНИМ словом:
+- top (футболка, рубашка, блузка, свитер)
+- bottom (штаны, джинсы, шорты, юбка)
+- dress (платье, комбинезон)
+- outerwear (куртка, пальто, пиджак)
+- swimwear (купальник, плавки)
+- underwear (нижнее белье)
+- accessory (сумка, шляпа, обувь)
+
+Ответь только одним словом: top, bottom, dress, outerwear, swimwear, underwear, accessory. Если не уверен - ответь top."""}
+                    ]
+                }],
+                "generationConfig": {
+                    "responseModalities": ["TEXT"]
+                }
+            }
 
             response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.text_model_name,
-                contents=[
-                    clothing_image,
-                    "Определи тип одежды на изображении. Ответь ОДНИМ словом из списка: top, bottom, dress, outerwear, swimwear, underwear, accessory, shoes. Если не уверен - ответь top или bottom.",
-                ]
+                requests.post,
+                self.api_url,
+                headers=headers,
+                json=payload,
+                timeout=30
             )
 
-            result = response.text.strip().lower()
-            valid_types = ["top", "bottom", "dress", "outerwear", "swimwear", "underwear", "accessory", "shoes"]
+            if response.status_code != 200:
+                logger.warning(f"[LaoZhang] Clothing detection failed: {response.status_code}")
+                return "top"
 
-            # Map some types to default if not in valid list
-            if result not in valid_types:
-                # Try to extract valid type from response
-                for valid in valid_types:
-                    if valid in result:
-                        return valid
-                return "top"  # Default to top instead of unknown
+            result = response.json()
+            text = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip().lower()
 
-            return result
+            valid_types = ["top", "bottom", "dress", "outerwear", "swimwear", "underwear", "accessory"]
+            for t in valid_types:
+                if t in text:
+                    return t
+
+            return "top"
 
         except Exception as e:
-            logger.error(f"Error detecting clothing type: {e}")
-            return "top"  # Default to top instead of unknown
+            logger.error(f"[LaoZhang] Error detecting clothing type: {e}")
+            return "top"
 
 
+# Global service instance
 nano_banana_service = NanoBananaService()
