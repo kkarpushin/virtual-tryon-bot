@@ -6,6 +6,7 @@ import secrets
 import logging
 
 from bot.models import User, get_session
+from bot.utils.telegram_utils import safe_answer
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -126,7 +127,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def upload_photo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle upload photo button."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     await query.message.reply_text(
         UPLOAD_PHOTO_TEXT,
@@ -137,7 +138,7 @@ async def upload_photo_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def my_photo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show current photo and allow changing it."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     user = update.effective_user
 
@@ -174,7 +175,7 @@ async def my_photo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def change_photo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle change photo button - set flag to expect new profile photo."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     # Set flag in user_data to indicate we're expecting a new profile photo
     context.user_data['expecting_profile_photo'] = True
@@ -195,7 +196,7 @@ async def change_photo_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def back_to_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle back to menu button."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     user = update.effective_user
 
@@ -216,7 +217,7 @@ async def back_to_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle stats button."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     user = update.effective_user
 

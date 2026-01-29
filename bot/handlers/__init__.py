@@ -11,6 +11,7 @@ def register_all_handlers(application):
     register_photo_handlers(application)
     register_payment_handlers(application)
     register_wardrobe_handlers(application)
+    # companion handlers removed - easter egg is now automatic!
 
 
 __all__ = [

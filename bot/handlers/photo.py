@@ -8,6 +8,7 @@ import logging
 
 from bot.models import User, Tryon, TryonStatus, get_session
 from bot.services import tryon_orchestrator
+from bot.utils.telegram_utils import safe_answer
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -141,7 +142,7 @@ async def handle_clothing_photo(update, context, db_user, photo, session):
         except Exception:
             pass  # Ignore edit errors
 
-    # Process tryon (this runs the self-improving loop)
+    # Process tryon
     try:
         result = await tryon_orchestrator.process_tryon(
             user_photo_path,
@@ -203,7 +204,7 @@ async def handle_clothing_photo(update, context, db_user, photo, session):
 async def save_tryon_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle saving tryon to wardrobe."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     tryon_id = int(query.data.split(":")[1])
     user = update.effective_user

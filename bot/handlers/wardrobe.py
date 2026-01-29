@@ -5,6 +5,7 @@ from sqlalchemy import select
 import logging
 
 from bot.models import User, WardrobeItem, Tryon, get_session
+from bot.utils.telegram_utils import safe_answer
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 async def wardrobe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show user's saved wardrobe items."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     user = update.effective_user
 
@@ -70,7 +71,7 @@ async def wardrobe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def view_wardrobe_item_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """View a specific wardrobe item."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     item_id = int(query.data.split(":")[1])
 
@@ -117,7 +118,7 @@ async def view_wardrobe_item_callback(update: Update, context: ContextTypes.DEFA
 async def delete_wardrobe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Delete a wardrobe item."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     item_id = int(query.data.split(":")[1])
     user = update.effective_user
@@ -147,7 +148,7 @@ async def delete_wardrobe_callback(update: Update, context: ContextTypes.DEFAULT
 async def referral_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show referral info and link."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     user = update.effective_user
 

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import logging
 
 from bot.models import User, Payment, SubscriptionType, get_session
+from bot.utils.telegram_utils import safe_answer
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ PRODUCTS = {
 async def buy_tryons_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show payment options."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     text = """
 💳 **Купить примерки**
@@ -78,7 +79,7 @@ async def buy_tryons_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def pay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Initiate Telegram Stars payment."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     product_id = query.data.split(":")[1]
     product = PRODUCTS.get(product_id)
@@ -196,7 +197,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
 async def back_to_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Return to main menu."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer(query)
 
     user = update.effective_user
 

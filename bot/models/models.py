@@ -52,6 +52,9 @@ class User(Base):
     referral_code = Column(String(50), unique=True, nullable=True)
     referred_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+    # Easter egg - companion mode
+    companion_mode = Column(String(20), nullable=True)  # "female", "male", or None
+
     # Timestamps
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
