@@ -43,14 +43,14 @@ class TryonOrchestrator:
     5. If final score > threshold, save improved prompt globally
     6. Return best result
     """
-    
+
     def __init__(self):
         self.max_iterations = settings.max_prompt_iterations
         self.min_quality_score = settings.min_quality_score
         self.photos_dir = settings.photos_dir
         # Порог для сохранения улучшенного промпта глобально
         self.save_threshold = 8.0
-    
+
     async def process_tryon(
         self,
         user_photo_path: str,
@@ -67,13 +67,13 @@ class TryonOrchestrator:
                     await progress_callback(text)
                 except Exception as e:
                     logger.debug(f"Could not update status: {e}")
-        
+
         await update_status("🔍 Определяю тип одежды...")
-        
+
         # Detect clothing type
         clothing_type = await nano_banana_service.detect_clothing_type(clothing_photo_path)
         logger.info(f"Detected clothing type: {clothing_type}")
-        
+
         clothing_names = {
             "top": "верх (футболка/рубашка)",
             "bottom": "низ (штаны/юбка)",
@@ -84,20 +84,20 @@ class TryonOrchestrator:
             "unknown": "одежда"
         }
         clothing_name = clothing_names.get(clothing_type, "одежда")
-        
+
         await update_status(f"👗 Определено: {clothing_name}\n🎨 Генерирую примерку...")
-        
+
         # Get best known prompt
         current_prompt = await global_prompt_manager.get_best_prompt(clothing_type)
         logger.info(f"Using global prompt for {clothing_type}")
-        
+
         # Generate image (single pass - no quality loop)
         image_bytes, error = await nano_banana_service.generate_with_prompt(
             user_photo_path,
             clothing_photo_path,
             current_prompt
         )
-        
+
         if error or not image_bytes:
             logger.error(f"Generation failed: {error}")
             return TryonResult(
@@ -109,19 +109,19 @@ class TryonOrchestrator:
                 final_prompt=current_prompt,
                 error=error or "Failed to generate image"
             )
-        
+
         # Save result
         final_path = self.photos_dir / f"result_{tryon_id}.png"
         final_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         with open(final_path, "wb") as f:
             f.write(image_bytes)
-        
+
         # Update tryon record
         await self._update_tryon_record(
             tryon_id, str(final_path), current_prompt, 10.0, 1
         )
-        
+
         return TryonResult(
             success=True,
             image_path=str(final_path),
@@ -130,7 +130,7 @@ class TryonOrchestrator:
             iterations_used=1,
             final_prompt=current_prompt
         )
-    
+
     async def _save_prompt_history(
         self,
         tryon_id: int,
@@ -151,7 +151,7 @@ class TryonOrchestrator:
                 session.add(history)
         except Exception as e:
             logger.error(f"Error saving prompt history: {e}")
-    
+
     async def _update_tryon_record(
         self,
         tryon_id: int,
@@ -168,7 +168,7 @@ class TryonOrchestrator:
                     select(Tryon).where(Tryon.id == tryon_id)
                 )
                 tryon = result.scalar_one_or_none()
-                
+
                 if tryon:
                     tryon.result_photo_path = result_path
                     tryon.prompt_used = prompt

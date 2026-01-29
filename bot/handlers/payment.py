@@ -45,13 +45,13 @@ async def buy_tryons_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Show payment options."""
     query = update.callback_query
     await query.answer()
-    
+
     text = """
 💳 **Купить примерки**
 
 Выберите подходящий пакет:
 """
-    
+
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(
             f"1️⃣ 1 примерка — {PRODUCTS['single']['price']} ⭐",
@@ -71,7 +71,7 @@ async def buy_tryons_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         )],
         [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_menu")],
     ])
-    
+
     await query.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
 
@@ -79,17 +79,17 @@ async def pay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Initiate Telegram Stars payment."""
     query = update.callback_query
     await query.answer()
-    
+
     product_id = query.data.split(":")[1]
     product = PRODUCTS.get(product_id)
-    
+
     if not product:
         await query.message.reply_text("❌ Продукт не найден")
         return
-    
+
     # Send invoice using Telegram Stars (XTR currency)
     prices = [LabeledPrice(label=product["title"], amount=product["price"])]
-    
+
     await context.bot.send_invoice(
         chat_id=query.message.chat_id,
         title=product["title"],
@@ -104,20 +104,20 @@ async def pay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle pre-checkout query - validate and approve payment."""
     query = update.pre_checkout_query
-    
+
     # Validate the payment
     product_id = query.invoice_payload
     product = PRODUCTS.get(product_id)
-    
+
     if not product:
         await query.answer(ok=False, error_message="Продукт не найден")
         return
-    
+
     # Check price matches
     if query.total_amount != product["price"]:
         await query.answer(ok=False, error_message="Неверная цена")
         return
-    
+
     # All good, approve the payment
     await query.answer(ok=True)
 
@@ -126,25 +126,25 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
     """Handle successful payment - add tryons to user."""
     payment = update.message.successful_payment
     user = update.effective_user
-    
+
     product_id = payment.invoice_payload
     product = PRODUCTS.get(product_id)
-    
+
     if not product:
         await update.message.reply_text("❌ Ошибка: продукт не найден")
         return
-    
+
     async with get_session() as session:
         # Get user
         result = await session.execute(
             select(User).where(User.telegram_id == user.id)
         )
         db_user = result.scalar_one_or_none()
-        
+
         if not db_user:
             await update.message.reply_text("❌ Ошибка: пользователь не найден")
             return
-        
+
         # Create payment record
         payment_record = Payment(
             user_id=db_user.id,
@@ -155,7 +155,7 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
             tryons_added=product["tryons"]
         )
         session.add(payment_record)
-        
+
         # Add tryons or activate subscription
         if product_id == "unlimited":
             db_user.subscription_type = SubscriptionType.UNLIMITED_MONTH
@@ -178,18 +178,18 @@ async def successful_payment_handler(update: Update, context: ContextTypes.DEFAU
 
 Отправьте фото одежды, чтобы начать примерку!
 """
-        
+
         # Process referrer bonus if applicable
         if db_user.referred_by_id:
             referrer_result = await session.execute(
                 select(User).where(User.id == db_user.referred_by_id)
             )
             referrer = referrer_result.scalar_one_or_none()
-            
+
             if referrer:
                 referrer.paid_tryons_remaining += settings.referrer_bonus_on_payment
                 logger.info(f"Referrer {referrer.telegram_id} received bonus for payment")
-    
+
     await update.message.reply_text(message, parse_mode="Markdown")
 
 
@@ -197,18 +197,18 @@ async def back_to_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
     """Return to main menu."""
     query = update.callback_query
     await query.answer()
-    
+
     user = update.effective_user
-    
+
     async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == user.id)
         )
         db_user = result.scalar_one_or_none()
         has_photo = db_user.photo_file_id is not None if db_user else False
-    
+
     from .start import get_main_keyboard
-    
+
     await query.message.reply_text(
         "🏠 **Главное меню**\n\nВыберите действие:",
         parse_mode="Markdown",

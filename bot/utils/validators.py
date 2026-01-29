@@ -25,7 +25,7 @@ def validate_profile_photo(image_path: str) -> PhotoValidationResult:
     try:
         with Image.open(image_path) as img:
             width, height = img.size
-            
+
             # Check minimum resolution
             if width < 512 or height < 512:
                 return PhotoValidationResult(
@@ -33,7 +33,7 @@ def validate_profile_photo(image_path: str) -> PhotoValidationResult:
                     f"Фото слишком маленькое ({width}x{height}). "
                     "Минимальный размер: 512x512 пикселей."
                 )
-            
+
             # Check aspect ratio
             aspect_ratio = width / height
             if aspect_ratio < 0.4 or aspect_ratio > 2.5:
@@ -42,7 +42,7 @@ def validate_profile_photo(image_path: str) -> PhotoValidationResult:
                     "Неподходящие пропорции фото. "
                     "Используйте вертикальное или квадратное фото."
                 )
-            
+
             # Check format
             if img.format not in ["JPEG", "PNG", "WEBP", "JPG"]:
                 return PhotoValidationResult(
@@ -50,9 +50,9 @@ def validate_profile_photo(image_path: str) -> PhotoValidationResult:
                     f"Неподдерживаемый формат ({img.format}). "
                     "Используйте JPEG, PNG или WEBP."
                 )
-            
+
             return PhotoValidationResult(True, "Фото подходит")
-            
+
     except Exception as e:
         logger.error(f"Error validating photo: {e}")
         return PhotoValidationResult(False, "Не удалось прочитать фото")
@@ -69,15 +69,15 @@ def validate_clothing_photo(image_path: str) -> PhotoValidationResult:
     try:
         with Image.open(image_path) as img:
             width, height = img.size
-            
+
             if width < 256 or height < 256:
                 return PhotoValidationResult(
                     False,
                     f"Фото одежды слишком маленькое ({width}x{height})."
                 )
-            
+
             return PhotoValidationResult(True, "OK")
-            
+
     except Exception as e:
         logger.error(f"Error validating clothing photo: {e}")
         return PhotoValidationResult(False, "Не удалось прочитать фото")

@@ -22,11 +22,11 @@ class OptimizedPrompt:
 
 class PromptOptimizer:
     """Service for optimizing prompts based on quality feedback."""
-    
+
     def __init__(self):
         self.client = genai.Client(api_key=settings.gemini_api_key)
         self.model_name = "gemini-2.5-flash"
-        
+
         self.optimization_prompt = """
 Ты эксперт по промптам для генерации изображений виртуальной примерки.
 
@@ -47,7 +47,7 @@ class PromptOptimizer:
 
 Ответь ТОЛЬКО новым промптом, без объяснений.
 """
-    
+
     async def optimize(
         self,
         previous_prompt: str,
@@ -63,21 +63,21 @@ class PromptOptimizer:
                 fit_score=evaluation.fit_score,
                 previous_prompt=previous_prompt
             )
-            
+
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
                 model=self.model_name,
                 contents=[prompt]
             )
-            
+
             new_prompt = response.text.strip()
-            
+
             return OptimizedPrompt(
                 prompt=new_prompt,
                 changes_made=f"Оптимизирован на основе {len(evaluation.issues)} проблем",
                 expected_improvements=evaluation.suggestions
             )
-            
+
         except Exception as e:
             logger.error(f"Error optimizing prompt: {e}")
             # Fallback - добавляем акцент на идентичность
@@ -87,7 +87,7 @@ class PromptOptimizer:
                 changes_made="Добавлен акцент на идентичность (fallback)",
                 expected_improvements=["Лучшее соответствие одежды"]
             )
-    
+
     async def create_initial_prompt(
         self,
         clothing_type: str,
@@ -95,18 +95,18 @@ class PromptOptimizer:
     ) -> str:
         """Create an initial prompt for a specific clothing type."""
         base = "Одень эту одежду на этого человека. Одежда должна выглядеть точно так же как на исходном фото - тот же цвет, текстура, рисунок, детали. Сохрани позу и внешность человека."
-        
+
         type_additions = {
             "top": " Обрати внимание на посадку плеч и длину рукавов.",
             "bottom": " Обрати внимание на посадку на талии и длину.",
             "dress": " Обрати внимание на всю длину платья и силуэт.",
             "outerwear": " Покажи как верхняя одежда сидит поверх других вещей.",
         }
-        
+
         prompt = base + type_additions.get(clothing_type, "")
         if additional_context:
             prompt += f" {additional_context}"
-        
+
         return prompt
 
 

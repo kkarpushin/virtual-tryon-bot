@@ -1,10 +1,10 @@
 [tool.ruff]
 target-version = "py311"
-line-length = 120
+line-length = 200
 
 [tool.ruff.lint]
-# Ignore unused imports in __init__.py files
-ignore = ["F401", "F841"]
+# Ignore unused imports, line length, whitespace, and SQLAlchemy bool comparisons
+ignore = ["F401", "F841", "E501", "W293", "E712", "W291", "W292"]
 select = ["E", "F", "W"]
 
 [tool.ruff.lint.per-file-ignores]

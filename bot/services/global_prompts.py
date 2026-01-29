@@ -34,7 +34,7 @@ DEFAULT_PROMPTS = {
 
 class GlobalPromptManager:
     """Manages global prompts with evolution tracking."""
-    
+
     async def get_best_prompt(self, clothing_type: str) -> str:
         """
         Get the best performing prompt for a clothing type.
@@ -51,11 +51,11 @@ class GlobalPromptManager:
                     .limit(1)
                 )
                 prompt = result.scalar_one_or_none()
-                
+
                 if prompt:
                     logger.info(f"Using global prompt v{prompt.version} for {clothing_type}")
                     return prompt.prompt
-                
+
                 # Try default
                 result = await session.execute(
                     select(GlobalPrompt)
@@ -65,16 +65,16 @@ class GlobalPromptManager:
                     .limit(1)
                 )
                 prompt = result.scalar_one_or_none()
-                
+
                 if prompt:
                     return prompt.prompt
-                
+
         except Exception as e:
             logger.error(f"Error getting best prompt: {e}")
-        
+
         # Fallback to hardcoded default
         return DEFAULT_PROMPTS.get(clothing_type, DEFAULT_PROMPTS["default"])
-    
+
     async def record_usage(
         self,
         clothing_type: str,
@@ -93,27 +93,27 @@ class GlobalPromptManager:
                     .where(GlobalPrompt.is_active == True)
                 )
                 global_prompt = result.scalar_one_or_none()
-                
+
                 if global_prompt:
                     # Update metrics
                     global_prompt.total_uses += 1
-                    
+
                     # Update average scores
                     old_avg = global_prompt.avg_quality_score
                     old_match = global_prompt.avg_clothing_match
                     n = global_prompt.total_uses
-                    
+
                     global_prompt.avg_quality_score = ((old_avg * (n - 1)) + evaluation.score) / n
                     global_prompt.avg_clothing_match = ((old_match * (n - 1)) + evaluation.clothing_match_score) / n
-                    
+
                     if evaluation.score >= 7:
                         global_prompt.successful_uses += 1
-                    
+
                     logger.info(f"Updated prompt metrics: avg={global_prompt.avg_quality_score:.2f}, uses={n}")
-        
+
         except Exception as e:
             logger.error(f"Error recording prompt usage: {e}")
-    
+
     async def save_improved_prompt(
         self,
         clothing_type: str,
@@ -135,14 +135,14 @@ class GlobalPromptManager:
                     .where(GlobalPrompt.is_active == True)
                 )
                 parent = result.scalar_one_or_none()
-                
+
                 parent_id = parent.id if parent else None
                 new_version = (parent.version + 1) if parent else 1
-                
+
                 # Deactivate old prompt
                 if parent:
                     parent.is_active = False
-                
+
                 # Create new prompt
                 new_global_prompt = GlobalPrompt(
                     clothing_type=clothing_type,
@@ -158,14 +158,14 @@ class GlobalPromptManager:
                 )
                 session.add(new_global_prompt)
                 await session.flush()
-                
+
                 logger.info(f"Saved new prompt v{new_version} for {clothing_type}: {improvement_reason}")
                 return new_global_prompt.id
-                
+
         except Exception as e:
             logger.error(f"Error saving improved prompt: {e}")
             return None
-    
+
     async def initialize_defaults(self):
         """Initialize default prompts if not exist."""
         try:
@@ -178,7 +178,7 @@ class GlobalPromptManager:
                         .limit(1)
                     )
                     exists = result.scalar_one_or_none()
-                    
+
                     if not exists:
                         new_prompt = GlobalPrompt(
                             clothing_type=clothing_type,
@@ -188,7 +188,7 @@ class GlobalPromptManager:
                         )
                         session.add(new_prompt)
                         logger.info(f"Initialized default prompt for {clothing_type}")
-                
+
         except Exception as e:
             logger.error(f"Error initializing default prompts: {e}")
 

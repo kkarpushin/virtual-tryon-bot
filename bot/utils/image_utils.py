@@ -23,10 +23,10 @@ def resize_image(
     """
     img = Image.open(image_path)
     img.thumbnail(max_size, Image.Resampling.LANCZOS)
-    
+
     output = output_path or image_path
     img.save(output, quality=95)
-    
+
     return output
 
 

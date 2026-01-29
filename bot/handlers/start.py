@@ -54,19 +54,19 @@ PHOTO_SAVED_TEXT = """
 def get_main_keyboard(has_photo: bool = False) -> InlineKeyboardMarkup:
     """Get main menu keyboard."""
     buttons = []
-    
+
     if not has_photo:
         buttons.append([InlineKeyboardButton("📸 Загрузить фото", callback_data="upload_photo")])
     else:
         buttons.append([InlineKeyboardButton("📷 Моё фото", callback_data="my_photo")])
-    
+
     buttons.extend([
         [InlineKeyboardButton("👗 Мой гардероб", callback_data="wardrobe")],
         [InlineKeyboardButton("💳 Купить примерки", callback_data="buy_tryons")],
         [InlineKeyboardButton("👥 Пригласить друга", callback_data="referral")],
         [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
     ])
-    
+
     return InlineKeyboardMarkup(buttons)
 
 
@@ -74,18 +74,18 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     user = update.effective_user
     referral_code = None
-    
+
     # Check for referral code in start parameter
     if context.args:
         referral_code = context.args[0]
-    
+
     async with get_session() as session:
         # Check if user exists
         result = await session.execute(
             select(User).where(User.telegram_id == user.id)
         )
         db_user = result.scalar_one_or_none()
-        
+
         if not db_user:
             # Create new user
             db_user = User(
@@ -96,26 +96,26 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 free_tryons_remaining=settings.free_tryons_limit,
                 referral_code=secrets.token_urlsafe(8)
             )
-            
+
             # Process referral
             if referral_code:
                 referrer_result = await session.execute(
                     select(User).where(User.referral_code == referral_code)
                 )
                 referrer = referrer_result.scalar_one_or_none()
-                
+
                 if referrer and referrer.telegram_id != user.id:
                     db_user.referred_by_id = referrer.id
                     # Give bonus to referrer
                     referrer.free_tryons_remaining += settings.referral_bonus_tryons
                     logger.info(f"Referral bonus given to user {referrer.telegram_id}")
-            
+
             session.add(db_user)
             await session.flush()
-        
+
         has_photo = db_user.photo_file_id is not None
         tryons = db_user.total_tryons_available
-    
+
     await update.message.reply_text(
         WELCOME_TEXT.format(free_tryons=settings.free_tryons_limit),
         parse_mode="Markdown",
@@ -127,7 +127,7 @@ async def upload_photo_callback(update: Update, context: ContextTypes.DEFAULT_TY
     """Handle upload photo button."""
     query = update.callback_query
     await query.answer()
-    
+
     await query.message.reply_text(
         UPLOAD_PHOTO_TEXT,
         parse_mode="Markdown"
@@ -138,26 +138,26 @@ async def my_photo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show current photo and allow changing it."""
     query = update.callback_query
     await query.answer()
-    
+
     user = update.effective_user
-    
+
     async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == user.id)
         )
         db_user = result.scalar_one_or_none()
-        
+
         if not db_user or not db_user.photo_file_id:
             await query.message.reply_text(
                 "У вас ещё нет загруженного фото. Отправьте фото в чат!"
             )
             return
-        
+
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 Заменить фото", callback_data="change_photo")],
             [InlineKeyboardButton("◀️ Назад", callback_data="back_to_menu")],
         ])
-        
+
         # Send current photo
         await query.message.reply_photo(
             photo=db_user.photo_file_id,
@@ -175,10 +175,10 @@ async def change_photo_callback(update: Update, context: ContextTypes.DEFAULT_TY
     """Handle change photo button - set flag to expect new profile photo."""
     query = update.callback_query
     await query.answer()
-    
+
     # Set flag in user_data to indicate we're expecting a new profile photo
     context.user_data['expecting_profile_photo'] = True
-    
+
     await query.message.reply_text(
         """📸 **Отправьте новое фото**
 
@@ -196,16 +196,16 @@ async def back_to_menu_callback(update: Update, context: ContextTypes.DEFAULT_TY
     """Handle back to menu button."""
     query = update.callback_query
     await query.answer()
-    
+
     user = update.effective_user
-    
+
     async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == user.id)
         )
         db_user = result.scalar_one_or_none()
         has_photo = db_user.photo_file_id is not None if db_user else False
-    
+
     await query.message.reply_text(
         "📱 **Главное меню**\n\nВыберите действие:",
         parse_mode="Markdown",
@@ -217,19 +217,19 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle stats button."""
     query = update.callback_query
     await query.answer()
-    
+
     user = update.effective_user
-    
+
     async with get_session() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == user.id)
         )
         db_user = result.scalar_one_or_none()
-        
+
         if not db_user:
             await query.message.reply_text("Пользователь не найден. Нажмите /start")
             return
-        
+
         # Count tryons
         from bot.models import Tryon, TryonStatus
         tryons_result = await session.execute(
@@ -239,7 +239,7 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         )
         tryons = tryons_result.scalars().all()
-    
+
     stats_text = f"""
 📊 **Ваша статистика**
 
@@ -252,7 +252,7 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📅 Зарегистрирован: {db_user.created_at.strftime('%d.%m.%Y')}
 """
-    
+
     await query.message.reply_text(stats_text, parse_mode="Markdown")
 
 

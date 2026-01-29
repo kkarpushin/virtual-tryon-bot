@@ -25,11 +25,11 @@ class QualityEvaluation:
 
 class QualityEvaluator:
     """Service for evaluating quality of generated try-on images with clothing identity check."""
-    
+
     def __init__(self):
         self.client = genai.Client(api_key=settings.gemini_api_key)
         self.model_name = "gemini-2.5-flash"
-        
+
         self.evaluation_prompt = """
 Ты эксперт по оценке виртуальной примерки одежды. Оцени сгенерированное изображение.
 
@@ -50,7 +50,7 @@ class QualityEvaluator:
     "suggestions": ["как исправить 1", "как исправить 2"]
 }
 """
-    
+
     async def evaluate(
         self,
         generated_image_path: str,
@@ -62,39 +62,39 @@ class QualityEvaluator:
         """
         try:
             contents = []
-            
+
             # Оригинальная одежда - ОБЯЗАТЕЛЬНО для сравнения
             if original_clothing_path:
                 contents.append("ОРИГИНАЛЬНАЯ ОДЕЖДА (должна выглядеть точно так же):")
                 contents.append(Image.open(original_clothing_path))
-            
+
             # Оригинальный человек
             if original_person_path:
                 contents.append("Исходное фото человека:")
                 contents.append(Image.open(original_person_path))
-            
+
             contents.append("РЕЗУЛЬТАТ ПРИМЕРКИ (оцени это):")
             contents.append(Image.open(generated_image_path))
             contents.append(self.evaluation_prompt)
-            
+
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
                 model=self.model_name,
                 contents=contents
             )
-            
+
             # Parse JSON
             text = response.text.strip()
-            
+
             if text.startswith("```json"):
                 text = text[7:]
             if text.startswith("```"):
                 text = text[3:]
             if text.endswith("```"):
                 text = text[:-3]
-            
+
             data = json.loads(text.strip())
-            
+
             return QualityEvaluation(
                 score=float(data.get("score", 0)),
                 clothing_match_score=float(data.get("clothing_match_score", 0)),
@@ -103,7 +103,7 @@ class QualityEvaluator:
                 issues=data.get("issues", []),
                 suggestions=data.get("suggestions", [])
             )
-            
+
         except Exception as e:
             logger.error(f"Error evaluating: {e}")
             return QualityEvaluation(
