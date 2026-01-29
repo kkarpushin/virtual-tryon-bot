@@ -1,0 +1,15 @@
+[Unit]
+Description=Virtual Try-On Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/virtual-tryon-bot
+Environment=PATH=/root/virtual-tryon-bot/venv/bin
+ExecStart=/root/virtual-tryon-bot/venv/bin/python -m bot.main
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
